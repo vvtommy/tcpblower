@@ -38,7 +38,7 @@ func main() {
 	}
 }
 
-func run(cmd *cobra.Command, args []string) {
+func run(_ *cobra.Command, _ []string) {
 	if _port < 0 || _port > 65535 || _peerPort < 0 || _peerPort > 65535 {
 		log.Fatal("port must be in range [0, 65535]")
 	}
@@ -65,7 +65,9 @@ func listenPort(port string, peerPort string) {
 		log.Println("err: error listening:", err.Error())
 		return
 	}
-	defer l.Close()
+	defer func() {
+		_ = l.Close()
+	}()
 	log.Println("listening on", port)
 
 	for {
@@ -88,7 +90,10 @@ func listenPort(port string, peerPort string) {
 func handleConn(conn net.Conn, peerPort string, conns *sync.Map) {
 	defer func() {
 		// 当连接断开时，从 sync.Map 中移除
-		conn.Close()
+		err := conn.Close()
+		if err != nil {
+			return
+		}
 		conns.Delete(conn)
 		log.Println("connection from", conn.RemoteAddr().String(), "closed")
 	}()
@@ -108,7 +113,7 @@ func handleConn(conn net.Conn, peerPort string, conns *sync.Map) {
 		if heartBeat {
 			port := conn.LocalAddr().String()
 			sendToAll(buf[:n], port, conns)
-			return
+			continue
 		}
 		// 将消息发送给另一个端口的所有设备
 		sendToAll(buf[:n], peerPort, conns)
