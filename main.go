@@ -87,7 +87,13 @@ func listenPort(port string, peerPort string) {
 	}
 }
 
+func getPortFromConnection(conn net.Conn) string {
+	parts := strings.Split(conn.LocalAddr().String(), ":")
+	return parts[len(parts)-1]
+}
+
 func handleConn(conn net.Conn, peerPort string, conns *sync.Map) {
+	incomePort := getPortFromConnection(conn)
 	defer func() {
 		// 当连接断开时，从 sync.Map 中移除
 		err := conn.Close()
@@ -95,7 +101,7 @@ func handleConn(conn net.Conn, peerPort string, conns *sync.Map) {
 			return
 		}
 		conns.Delete(conn)
-		log.Println("connection from", conn.RemoteAddr().String(), "closed")
+		log.Println(fmt.Sprintf("[%s] connection from", incomePort), conn.RemoteAddr().String(), "closed")
 	}()
 
 	for {
@@ -104,10 +110,12 @@ func handleConn(conn net.Conn, peerPort string, conns *sync.Map) {
 		n, err := conn.Read(buf)
 		if err != nil {
 			if err != io.EOF {
-				log.Println("Error reading from", conn.RemoteAddr().String(), ":", err.Error())
+				log.Println(fmt.Sprintf("[%s] error reading from", incomePort), conn.RemoteAddr().String(), ":", err.Error())
 			}
 			break
 		}
+		log.Printf("[%s] receive from %s. data = \n%s\n", incomePort, conn.RemoteAddr().String(), hex.Dump(buf[:n]))
+
 		// 判断是否为心跳包
 		heartBeat := judgeHeartBeat(buf[:n])
 		if heartBeat {
@@ -136,21 +144,22 @@ func judgeHeartBeat(msg []byte) bool {
 	return len(msg) == 7
 }
 
-func sendToAll(msg []byte, port string, conns *sync.Map) {
+func sendToAll(msg []byte, port string, connections *sync.Map) {
 	heartbeat := judgeHeartBeat(msg)
 	// 遍历 sync.Map 中所有连接，找出连接到指定端口的设备
-	conns.Range(func(k, v interface{}) bool {
+	connections.Range(func(k, v interface{}) bool {
 		conn := k.(net.Conn)
+		fromPort := getPortFromConnection(conn)
 		address := conn.RemoteAddr().String()
 		if samePort(conn.LocalAddr().String(), port) {
-			logTemplate := "send to %s. data = \n%s\n"
+			logTemplate := "[%s] send to %s. data = \n%s\n"
 			if heartbeat {
-				logTemplate = "send heartbeat to %s. data = \n%s\n"
+				logTemplate = "[%s] send heartbeat to %s. data = \n%s\n"
 			}
-			log.Printf(logTemplate, address, hex.Dump(msg))
+			log.Printf(logTemplate, fromPort, address, hex.Dump(msg))
 			_, err := conn.Write(msg)
 			if err != nil {
-				fmt.Println("Error sending to", conn.RemoteAddr().String(), ":", err.Error())
+				fmt.Println(fmt.Sprintf("[%s] error sending to", fromPort), conn.RemoteAddr().String(), ":", err.Error())
 			}
 		}
 		return true
