@@ -20,7 +20,7 @@ var BuildTime = "%UNKNOWN%"
 var rootCmd = &cobra.Command{
 	Use:     NAME,
 	Version: fmt.Sprintf("%s(built at %s)", Version, BuildTime),
-	Short:   fmt.Sprintf("%s is a compact testing tool that facilitates the transfer of data between various ports.\n\n", NAME),
+	Short:   fmt.Sprintf("%s is a compact testing tool that facilitates the transfer of data between various ports.\n", NAME),
 	Long: fmt.Sprintf(`%s can forward data between different ports and display it in a hex table format, making it useful for debugging embedded devices. It also supports multiple architectures.
 `, NAME),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -53,9 +53,6 @@ func run(cmd *cobra.Command, args []string) {
 
 	// 阻塞主线程，保持程序运行
 	select {}
-}
-
-type Connections struct {
 }
 
 // 使用 sync.Map 维护连接
